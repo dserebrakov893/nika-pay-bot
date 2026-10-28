@@ -1,7 +1,7 @@
 import http from 'node:http';
 import { config } from './config.js';
 import { isYooKassaIp } from './yookassa.js';
-import { processNotification } from './processor.js';
+import { processNotification, enqueue } from './processor.js';
 
 function clientIp(req) {
   // За прокси Railway реальный адрес клиента приходит в X-Real-IP / X-Forwarded-For
@@ -25,15 +25,6 @@ function readBody(req, limit = 1_000_000) {
     req.on('end', () => resolve(Buffer.concat(chunks).toString('utf8')));
     req.on('error', reject);
   });
-}
-
-// Очередь: уведомления обрабатываются по одному, чтобы счётчики и тревоги считались в правильном порядке
-let queue = Promise.resolve();
-function enqueue(body) {
-  queue = queue
-    .then(() => processNotification(body))
-    .catch((e) => console.error('[webhook] ошибка обработки', e));
-  return queue;
 }
 
 export function startServer() {
@@ -69,7 +60,7 @@ export function startServer() {
 
     // ЮКассе важно быстро получить 200, обработка идёт дальше
     res.writeHead(200).end();
-    enqueue(body);
+    enqueue(() => processNotification(body)).catch((e) => console.error('[webhook] ошибка обработки', e));
   });
 
   server.listen(config.port, () => console.log(`[server] слушаю порт ${config.port}, вебхук: POST ${'/yookassa/***'}`));

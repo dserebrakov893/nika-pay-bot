@@ -44,14 +44,14 @@ export async function saveEvent(row) {
   const res = await pool.query(
     `INSERT INTO yk_events
        (event, object_id, payment_id, status, amount, income_amount, currency, description,
-        method_type, method_title, cancel_party, cancel_reason, is_test, verified, object_created, raw)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16)
+        method_type, method_title, cancel_party, cancel_reason, is_test, verified, object_created, raw, received_at)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16, COALESCE($17, now()))
      ON CONFLICT (event, object_id) DO NOTHING
      RETURNING id`,
     [
       row.event, row.objectId, row.paymentId, row.status, row.amount, row.incomeAmount, row.currency,
       row.description, row.methodType, row.methodTitle, row.cancelParty, row.cancelReason,
-      row.isTest, row.verified, row.objectCreated, row.raw,
+      row.isTest, row.verified, row.objectCreated, row.raw, row.receivedAt ?? null,
     ],
   );
   return res.rowCount > 0;

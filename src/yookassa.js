@@ -28,17 +28,36 @@ export function isYooKassaIp(ip) {
   return blockList.check(clean, type);
 }
 
-// Запрашивает актуальный объект в API ЮКассы. Это главная защита от поддельных уведомлений.
-export async function fetchObject(kind, id) {
-  const path = kind === 'refund' ? 'refunds' : 'payments';
+async function apiGet(path) {
   const auth = Buffer.from(`${config.ykShopId}:${config.ykSecretKey}`).toString('base64');
-  const res = await fetch(`${process.env.YK_API_ROOT || 'https://api.yookassa.ru'}/v3/${path}/${encodeURIComponent(id)}`, {
+  const res = await fetch(`${process.env.YK_API_ROOT || 'https://api.yookassa.ru'}/v3/${path}`, {
     headers: { Authorization: `Basic ${auth}` },
     signal: AbortSignal.timeout(10_000),
   });
   if (res.status === 404) return null;
   if (!res.ok) throw new Error(`YooKassa API ${res.status}: ${await res.text()}`);
   return res.json();
+}
+
+// Запрашивает актуальный объект в API ЮКассы. Это главная защита от поддельных уведомлений.
+export async function fetchObject(kind, id) {
+  const path = kind === 'refund' ? 'refunds' : 'payments';
+  return apiGet(`${path}/${encodeURIComponent(id)}`);
+}
+
+// Список платежей или возвратов по фильтру, все страницы
+export async function listObjects(kind, params) {
+  const path = kind === 'refund' ? 'refunds' : 'payments';
+  const items = [];
+  let cursor;
+  do {
+    const q = new URLSearchParams({ ...params, limit: '100' });
+    if (cursor) q.set('cursor', cursor);
+    const data = await apiGet(`${path}?${q}`);
+    items.push(...(data?.items ?? []));
+    cursor = data?.next_cursor;
+  } while (cursor);
+  return items;
 }
 
 export { verifyEnabled };

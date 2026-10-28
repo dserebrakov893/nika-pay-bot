@@ -15,6 +15,15 @@ const EXPECTED_STATUS = {
   'refund.succeeded': 'succeeded',
 };
 
+// Очередь: события обрабатываются по одному, чтобы счётчики и тревоги считались в правильном порядке.
+// Через неё идут и вебхуки, и опрос API.
+let queue = Promise.resolve();
+export function enqueue(task) {
+  const run = queue.then(task);
+  queue = run.catch(() => {});
+  return run;
+}
+
 export async function processNotification(body) {
   const event = body?.event;
   const obj = body?.object;
@@ -45,7 +54,15 @@ export async function processNotification(body) {
     verified = true;
   }
 
+  await handleEvent(event, actual, verified);
+}
+
+// Сохраняет событие и уведомляет. receivedAt: время события, если оно известно точнее, чем «сейчас».
+// backfill: только записать в базу, без уведомлений (первый запуск опроса).
+// Возвращает true, если событие новое.
+export async function handleEvent(event, actual, verified, { receivedAt, backfill = false } = {}) {
   const row = normalize(event, actual, verified);
+  row.receivedAt = receivedAt;
 
   // для возврата подтянем описание исходного платежа
   if (event === 'refund.succeeded' && !row.description) {
@@ -54,9 +71,10 @@ export async function processNotification(body) {
   }
 
   const isNew = await saveEvent(row);
-  if (!isNew) return; // повторная доставка, уже уведомляли
+  if (!isNew) return false; // повторная доставка, уже уведомляли
+  if (backfill) return true;
 
-  if (row.isTest && !config.notifyTest) return;
+  if (row.isTest && !config.notifyTest) return true;
 
   let text;
   if (event === 'payment.succeeded') text = msgSucceeded(row, await todayTotals());
@@ -69,6 +87,7 @@ export async function processNotification(body) {
   await notifyOwners(text, { silent });
 
   if (!row.isTest) await checkAlerts(event);
+  return true;
 }
 
 // Тревога: несколько настоящих отказов подряд (брошенные оплаты не считаются)

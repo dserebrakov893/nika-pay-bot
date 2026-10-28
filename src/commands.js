@@ -1,7 +1,8 @@
 import { Keyboard } from 'grammy';
 import { config, verifyEnabled } from './config.js';
 import { bot } from './notify.js';
-import { pool } from './db.js';
+import { pool, getState } from './db.js';
+import { esc } from './format.js';
 import { todayReport, weekReport, monthReport, dayReport, lastPayments, lastFails } from './analytics.js';
 import { fmtDayTime, mskDayStart } from './time.js';
 
@@ -86,10 +87,13 @@ async function statusText() {
      FROM yk_events`,
   );
   const r = rows[0];
+  const pollOk = await getState('poll_ok');
+  const pollError = await getState('poll_error');
   return [
     '🟢 <b>Бот работает</b>',
     `Событий в базе: ${r.n}`,
-    `Последнее уведомление ЮКассы: ${r.last ? fmtDayTime(r.last) : 'ещё не было'}`,
+    `Последнее событие ЮКассы: ${r.last ? fmtDayTime(r.last) : 'ещё не было'}`,
+    `Опрос API: ${!verifyEnabled ? 'выключен' : pollError ? '❌ ' + esc(pollError) : pollOk ? 'последний ' + fmtDayTime(new Date(pollOk)) : 'ещё не было'}`,
     `Перепроверка через API: ${verifyEnabled ? 'включена' : '❌ выключена, задай YK_SHOP_ID и YK_SECRET_KEY'}`,
     `Проверка IP ЮКассы: ${config.checkIp ? 'включена' : 'выключена'}`,
     r.unverified ? `Неперепроверенных событий: ${r.unverified}` : null,
