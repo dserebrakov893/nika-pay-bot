@@ -1,3 +1,4 @@
+import { Keyboard } from 'grammy';
 import { config, verifyEnabled } from './config.js';
 import { bot } from './notify.js';
 import { pool } from './db.js';
@@ -16,6 +17,25 @@ const HELP = `<b>Платежи ${config.shopName}</b>
 /fails  последние отказы
 /status  всё ли работает`;
 
+// Постоянное меню кнопками под полем ввода
+const BTN = {
+  today: '📊 Сегодня',
+  yesterday: '📅 Вчера',
+  week: '🗓 Неделя',
+  month: '📆 Месяц',
+  last: '💰 Оплаты',
+  fails: '❌ Отказы',
+  status: '🟢 Статус',
+};
+
+const menu = new Keyboard()
+  .text(BTN.today).text(BTN.yesterday).row()
+  .text(BTN.week).text(BTN.month).row()
+  .text(BTN.last).text(BTN.fails).row()
+  .text(BTN.status)
+  .resized()
+  .persistent();
+
 export function setupCommands() {
   // Бот отвечает только владельцу. Остальным показывает их chat_id, чтобы было проще настроить.
   bot.use(async (ctx, next) => {
@@ -28,21 +48,33 @@ export function setupCommands() {
 
   const send = (fn) => async (ctx) => {
     try {
-      await ctx.reply(await fn(), { parse_mode: 'HTML', link_preview_options: { is_disabled: true } });
+      await ctx.reply(await fn(), {
+        parse_mode: 'HTML',
+        link_preview_options: { is_disabled: true },
+        reply_markup: menu,
+      });
     } catch (e) {
       console.error('[cmd]', e);
-      await ctx.reply('Не получилось посчитать, ошибка в логах.');
+      await ctx.reply('Не получилось посчитать, ошибка в логах.', { reply_markup: menu });
     }
   };
 
   bot.command(['start', 'help'], send(async () => HELP));
-  bot.command('today', send(() => todayReport()));
-  bot.command('yesterday', send(() => dayReport(mskDayStart(new Date(), -1))));
-  bot.command('week', send(() => weekReport()));
-  bot.command('month', send(() => monthReport()));
-  bot.command('last', send(() => lastPayments()));
-  bot.command('fails', send(() => lastFails()));
-  bot.command('status', send(statusText));
+
+  // каждое действие доступно и командой, и кнопкой меню
+  const actions = {
+    today: () => todayReport(),
+    yesterday: () => dayReport(mskDayStart(new Date(), -1)),
+    week: () => weekReport(),
+    month: () => monthReport(),
+    last: () => lastPayments(),
+    fails: () => lastFails(),
+    status: statusText,
+  };
+  for (const [name, fn] of Object.entries(actions)) {
+    bot.command(name, send(fn));
+    bot.hears(BTN[name], send(fn));
+  }
 
   bot.catch((err) => console.error('[bot]', err.error));
 }
