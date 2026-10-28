@@ -28,12 +28,23 @@ export function isYooKassaIp(ip) {
   return blockList.check(clean, type);
 }
 
-async function apiGet(path) {
+const API_TIMEOUT_MS = Number(process.env.YK_API_TIMEOUT_MS) || 30_000;
+
+// API ЮКассы иногда отвечает по несколько секунд, особенно на серверы за рубежом.
+// Поэтому ждём подольше и при таймауте или обрыве сети пробуем ещё раз.
+async function apiGet(path, attempt = 1) {
   const auth = Buffer.from(`${config.ykShopId}:${config.ykSecretKey}`).toString('base64');
-  const res = await fetch(`${process.env.YK_API_ROOT || 'https://api.yookassa.ru'}/v3/${path}`, {
-    headers: { Authorization: `Basic ${auth}` },
-    signal: AbortSignal.timeout(10_000),
-  });
+  let res;
+  try {
+    res = await fetch(`${process.env.YK_API_ROOT || 'https://api.yookassa.ru'}/v3/${path}`, {
+      headers: { Authorization: `Basic ${auth}` },
+      signal: AbortSignal.timeout(API_TIMEOUT_MS),
+    });
+  } catch (e) {
+    if (attempt < 2) return apiGet(path, attempt + 1);
+    const timeout = e.name === 'TimeoutError' || e.name === 'AbortError';
+    throw new Error(timeout ? `YooKassa API не ответил за ${API_TIMEOUT_MS / 1000} с` : `YooKassa API недоступен: ${e.cause?.code || e.message}`);
+  }
   if (res.status === 404) return null;
   if (!res.ok) throw new Error(`YooKassa API ${res.status}: ${await res.text()}`);
   return res.json();

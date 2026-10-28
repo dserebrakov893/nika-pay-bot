@@ -43,8 +43,12 @@ async function tick() {
     return fresh;
   });
 
+  failStreak = 0;
   await setState('poll_ok', new Date().toISOString());
-  if (await getState('poll_error')) await setState('poll_error', '');
+  if (await getState('poll_error')) {
+    await setState('poll_error', '');
+    await notifyOwners('✅ Связь с ЮКассой восстановилась, опрос снова работает.');
+  }
 
   if (backfill) {
     await setState('poll_started', new Date().toISOString());
@@ -72,13 +76,22 @@ function backfillText(found) {
   return L.join('\n');
 }
 
-// Об ошибке опроса пишем один раз, пока она не сменится или не пройдёт
+// Разовые сбои сети не стоят сообщения: пишем, только если опрос не удаётся несколько минут подряд,
+// и один раз, пока ошибка не сменится или не пройдёт. Пропущенные события подхватятся следующим удачным опросом.
+const FAIL_STREAK_TO_REPORT = 3;
+let failStreak = 0;
+
 async function reportError(e) {
-  console.error('[poller]', e.message);
+  failStreak++;
+  console.error(`[poller] ошибка ${failStreak} подряд:`, e.message);
+  if (failStreak < FAIL_STREAK_TO_REPORT) return;
   const text = String(e.message).slice(0, 300);
   if ((await getState('poll_error')) === text) return;
   await setState('poll_error', text);
-  await notifyOwners(`⚠️ Не получилось опросить ЮКассу:\n<code>${esc(text)}</code>\n\nЕсли там 401, проверь YK_SHOP_ID и YK_SECRET_KEY.`);
+  const hint = / 401\b/.test(text)
+    ? 'ЮКасса не принимает ключи: проверь YK_SHOP_ID и YK_SECRET_KEY.'
+    : 'ЮКасса не отвечает серверу бота. Продолжаю пробовать каждую минуту, пропущенные платежи подхвачу, когда связь появится.';
+  await notifyOwners(`⚠️ Не получается опросить ЮКассу уже ${failStreak} мин:\n<code>${esc(text)}</code>\n\n${hint}`);
 }
 
 export function startPoller() {
