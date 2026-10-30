@@ -45,6 +45,12 @@ export const config = {
 
   // показывать тестовые платежи (они всё равно не попадают в аналитику)
   notifyTest: (process.env.NOTIFY_TEST ?? 'true') !== 'false',
+
+  // Яндекс Метрика: посещаемость лендинга стретча
+  metrikaToken: process.env.METRIKA_TOKEN || '',
+  metrikaCounterId: process.env.METRIKA_COUNTER_ID || '113929945',
+  metrikaGoalId: process.env.METRIKA_GOAL_ID || '', // id цели form_submit
 };
 
 export const verifyEnabled = Boolean(config.ykShopId && config.ykSecretKey);
+export const metrikaEnabled = Boolean(config.metrikaToken);

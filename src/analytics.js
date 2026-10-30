@@ -1,6 +1,7 @@
 import { pool } from './db.js';
 import { esc, rub, pct, plural, reasonText } from './format.js';
-import { fmtDay, fmtDayTime, fmtMonth, mskDayStart, mskWeekStart, mskMonthStart } from './time.js';
+import { fmtDay, fmtDayTime, fmtMonth, mskDayStart, mskWeekStart, mskMonthStart, mskYmd } from './time.js';
+import { siteStats, landingLines } from './metrika.js';
 
 // Все отчёты считаются только по боевым (не тестовым) платежам.
 // Время платежа: момент события (received_at), он ближе всего к реальному моменту оплаты.
@@ -145,6 +146,15 @@ export function lastWeekReport(now = new Date()) {
   const to = mskWeekStart(now);
   const from = new Date(to - 7 * DAY);
   return report(`Итоги недели · ${fmtDay(from)} – ${fmtDay(new Date(to - 1))}`, from, to, new Date(from - 7 * DAY), from, 'Неделей раньше');
+}
+
+// Блок «Лендинг стретча» для итогов: визиты и заявки из Метрики, оплаты из базы бота
+export async function landingBlock(from, to) {
+  const [site, s] = await Promise.all([
+    siteStats(mskYmd(from), mskYmd(new Date(to - 1))),
+    stats(from, to),
+  ]);
+  return landingLines(site, s.okCount);
 }
 
 export function monthReport(now = new Date()) {

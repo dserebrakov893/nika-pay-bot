@@ -1,4 +1,4 @@
-import { config, verifyEnabled } from './config.js';
+import { config, verifyEnabled, metrikaEnabled } from './config.js';
 import { migrate } from './db.js';
 import { bot } from './notify.js';
 import { setupCommands, setMenu } from './commands.js';
@@ -15,6 +15,10 @@ async function main() {
 
   if (!verifyEnabled) {
     console.warn('[main] YK_SHOP_ID / YK_SECRET_KEY не заданы: уведомления не перепроверяются через API');
+  }
+
+  if (!metrikaEnabled) {
+    console.warn('[main] METRIKA_TOKEN не задан: /site и блок «Лендинг стретча» выключены');
   }
 
   await setMenu().catch((e) => console.warn('[main] меню команд не обновлено', e.message));

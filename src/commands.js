@@ -1,9 +1,10 @@
 import { Keyboard } from 'grammy';
-import { config, verifyEnabled } from './config.js';
+import { config, verifyEnabled, metrikaEnabled } from './config.js';
 import { bot } from './notify.js';
 import { pool, getState } from './db.js';
 import { esc } from './format.js';
 import { todayReport, weekReport, monthReport, dayReport, lastPayments, lastFails } from './analytics.js';
+import { siteReport } from './metrika.js';
 import { fmtDayTime, mskDayStart } from './time.js';
 
 const HELP = `<b>Платежи ${config.shopName}</b>
@@ -16,6 +17,7 @@ const HELP = `<b>Платежи ${config.shopName}</b>
 /month  текущий месяц
 /last  последние оплаты
 /fails  последние отказы
+/site  лендинг стретча: визиты и заявки
 /status  всё ли работает`;
 
 // Постоянное меню кнопками под полем ввода
@@ -26,6 +28,7 @@ const BTN = {
   month: '📆 Месяц',
   last: '💰 Оплаты',
   fails: '❌ Отказы',
+  site: '🌐 Сайт',
   status: '🟢 Статус',
 };
 
@@ -33,7 +36,7 @@ const menu = new Keyboard()
   .text(BTN.today).text(BTN.yesterday).row()
   .text(BTN.week).text(BTN.month).row()
   .text(BTN.last).text(BTN.fails).row()
-  .text(BTN.status)
+  .text(BTN.site).text(BTN.status)
   .resized()
   .persistent();
 
@@ -70,6 +73,7 @@ export function setupCommands() {
     month: () => monthReport(),
     last: () => lastPayments(),
     fails: () => lastFails(),
+    site: () => siteReport(),
     status: statusText,
   };
   for (const [name, fn] of Object.entries(actions)) {
@@ -96,6 +100,7 @@ async function statusText() {
     `Опрос API: ${!verifyEnabled ? 'выключен' : pollError ? '❌ ' + esc(pollError) : pollOk ? 'последний ' + fmtDayTime(new Date(pollOk)) : 'ещё не было'}`,
     `Перепроверка через API: ${verifyEnabled ? 'включена' : '❌ выключена, задай YK_SHOP_ID и YK_SECRET_KEY'}`,
     `Проверка IP ЮКассы: ${config.checkIp ? 'включена' : 'выключена'}`,
+    `Метрика: ${!metrikaEnabled ? '⚠️ не подключена, задай METRIKA_TOKEN' : config.metrikaGoalId ? `счётчик ${esc(config.metrikaCounterId)}` : `счётчик ${esc(config.metrikaCounterId)}, ⚠️ без заявок: задай METRIKA_GOAL_ID`}`,
     r.unverified ? `Неперепроверенных событий: ${r.unverified}` : null,
   ].filter(Boolean).join('\n');
 }
@@ -108,6 +113,7 @@ export async function setMenu() {
     { command: 'month', description: 'Текущий месяц' },
     { command: 'last', description: 'Последние оплаты' },
     { command: 'fails', description: 'Последние отказы' },
+    { command: 'site', description: 'Лендинг стретча' },
     { command: 'status', description: 'Всё ли работает' },
   ]);
 }

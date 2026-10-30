@@ -19,6 +19,11 @@ export function mskDayStart(date = new Date(), offsetDays = 0) {
   return new Date(Date.UTC(p.year, p.month, p.day + offsetDays) - MSK_OFFSET_MS);
 }
 
+// дата по Москве в виде YYYY-MM-DD
+export function mskYmd(date = new Date()) {
+  return new Date(date.getTime() + MSK_OFFSET_MS).toISOString().slice(0, 10);
+}
+
 // начало недели (понедельник) по Москве
 export function mskWeekStart(date = new Date()) {
   const p = mskParts(date);
